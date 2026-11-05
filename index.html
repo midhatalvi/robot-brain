@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot Brain Lab</title>
+<meta name="description" content="Build a robot brain: a camera that sees, commands you type, and a robot arm that only moves when you write the rules.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --page:#E9EBEE; --card:#FAFBFC; --well:#E1E4E8; --line:#D3D7DD;
+    --ink:#0B0B0C; --ink-2:#3A3F48; --muted:#5B6170;
+    --blue:#1F4FFF; --blue-hover:#173FD6; --lime:#D4F84A; --bad:#B42318;
+    --code-bg:#0B0B0C; --code-ink:#ECEDEF;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--page);color:var(--ink);font:17px/1.55 "Inter Tight",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:-0.005em;-webkit-font-smoothing:antialiased}
+  button,input,textarea{font:inherit;color:inherit}
+  a{color:inherit}
+
+  /* top bar */
+  .bar{position:sticky;top:0;z-index:5;background:var(--ink);color:#F2F3F5}
+  .bar-in{max-width:1480px;margin:0 auto;padding:12px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .mark{font-weight:700;font-size:18px;letter-spacing:-0.02em}
+  .status{display:flex;gap:6px;flex-wrap:wrap}
+  .status span{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;background:#1C1F24;font-weight:600;font-size:15px;transition:background .25s var(--ease),color .25s var(--ease)}
+  .status span i{width:8px;height:8px;border-radius:50%;background:#59606B;transition:background .25s var(--ease)}
+  .status span.on{background:var(--lime);color:var(--ink)}
+  .status span.on i{background:var(--ink)}
+
+  /* intro */
+  .intro{max-width:1480px;margin:0 auto;padding:40px 28px 8px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px 48px;align-items:end}
+  @media (max-width:980px){.intro{grid-template-columns:1fr}}
+  h1{margin:0;font-size:clamp(48px,6.6vw,112px);font-weight:600;letter-spacing:-0.045em;line-height:0.92}
+  .lede{margin:16px 0 0;font-size:21px;line-height:1.45;max-width:46ch;color:var(--ink-2)}
+  .rounds{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .round{background:var(--card);padding:18px 20px}
+  .round b{display:block;font-size:20px;letter-spacing:-0.02em}
+  .round span{display:block;font-size:16px;color:var(--ink-2);margin-top:4px}
+  .round.r2{background:var(--ink);color:#F2F3F5}
+  .round.r2 span{color:#B9BEC7}
+
+  main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;padding:24px 28px 12px;max-width:1480px;margin:0 auto}
+  @media (max-width:980px){main{grid-template-columns:1fr}}
+  .col{display:flex;flex-direction:column;gap:20px;min-width:0}
+  .card{background:var(--card);padding:22px 24px 24px}
+  .card.dark{background:var(--ink);color:#ECEDEF}
+  .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .card h2{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.025em;line-height:1.1}
+  .card .sub{margin:4px 0 0;font-size:16px;color:var(--ink-2)}
+  .card.dark .sub{color:#B9BEC7}
+  .tag{font-size:14px;font-weight:600;padding:4px 10px;background:var(--well);white-space:nowrap}
+  .card.dark .tag{background:#1C1F24;color:#ECEDEF}
+  .hint{font-size:16px;margin:10px 0 0;color:var(--muted)}
+  .card.dark .hint{color:#9AA1AC}
+
+  .btn{border:0;background:var(--ink);color:#fff;padding:11px 18px;font-weight:600;font-size:16px;cursor:pointer;border-radius:0;transition:transform .12s var(--ease),background .15s var(--ease)}
+  .btn:hover{background:#262A31}
+  .btn:active{transform:translateY(1px) scale(.99)}
+  .btn.blue{background:var(--blue)}
+  .btn.blue:hover{background:var(--blue-hover)}
+  .btn.soft{background:var(--well);color:var(--ink)}
+  .btn.soft:hover{background:#D3D8DE}
+  .card.dark .btn.soft{background:#262A31;color:#ECEDEF}
+  .card.dark .btn.soft:hover{background:#343942}
+  .btn:focus-visible,.cmd input:focus-visible,textarea:focus-visible,.note input:focus-visible,.examples button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+  /* vision */
+  .stage{position:relative;width:100%;margin:0 auto;background:#15171B;overflow:hidden;aspect-ratio:var(--ar,4/3);max-width:calc(40vh * var(--arn,1.3333))}
+  .stage video,.stage img,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}
+  .stage video.mirror{transform:scaleX(-1)}
+  .stage .msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#ECEDEF;padding:24px;font-size:18px}
+  .slider{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .slider input{flex:1;min-width:160px;accent-color:var(--blue)}
+  .slider output{font-weight:700;min-width:48px;font-variant-numeric:tabular-nums}
+  .seen{margin-top:12px;min-height:28px;font-size:17px}
+  .seen .maybe{color:var(--muted)}
+
+  /* measure */
+  .note{display:flex;gap:8px;flex-wrap:wrap}
+  .note input{flex:1;min-width:200px;border:0;background:var(--well);padding:11px 14px}
+  table.results{width:100%;border-collapse:collapse;margin-top:14px;font-size:16px}
+  table.results th{font-weight:600;color:var(--muted);font-size:14px}
+  table.results th,table.results td{text-align:left;padding:8px 10px;border-bottom:2px solid var(--line)}
+  table.results td.n,table.results th.n{text-align:right;font-variant-numeric:tabular-nums}
+  table.results tr.low td{background:var(--lime)}
+  .empty{color:var(--muted);font-size:16px;margin:12px 0 0}
+
+  /* action + language */
+  .robot{position:relative}
+  #robot{width:100%;height:auto;display:block;background:#EEF0F2}
+  .bubble{position:absolute;left:16px;top:14px;max-width:70%;background:var(--blue);color:#fff;padding:9px 14px;font-weight:600;font-size:17px;opacity:0;transform:translateY(-6px);transition:opacity .2s var(--ease), transform .2s var(--ease);pointer-events:none}
+  .bubble.show{opacity:1;transform:none}
+  .cmd{display:flex;gap:8px;margin-top:16px}
+  .cmd input{flex:1;min-width:0;border:0;background:var(--well);padding:13px 16px;font-size:19px}
+  .examples{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .examples button{border:0;background:transparent;padding:6px 0;margin-right:14px;font-size:16px;font-weight:600;color:var(--blue);cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:2px}
+  .examples button:hover{color:var(--ink)}
+  .log{list-style:none;margin:14px 0 0;padding:0;font-size:16px;display:grid;gap:3px;color:var(--ink-2)}
+  .log li{display:flex;gap:10px;align-items:baseline}
+  .log .k{font-weight:700;min-width:62px;color:var(--ink)}
+  .log .k.x{color:var(--bad)}
+
+  /* brain */
+  textarea#code{width:100%;min-height:360px;resize:vertical;background:#15171B;color:var(--code-ink);border:0;padding:16px 18px;font:14.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:2}
+  .err{margin-top:12px;padding:10px 14px;background:#FDE3E1;color:var(--bad);font-weight:600;font-size:16px;display:none;white-space:pre-wrap}
+  .err.show{display:block}
+  .ok{margin-top:12px;padding:10px 14px;background:var(--lime);color:var(--ink);font-weight:600;font-size:16px;display:none}
+  .ok.show{display:block}
+
+  .missions table{width:100%;border-collapse:collapse;font-size:16px}
+  .missions th{font-weight:600;color:var(--muted);font-size:14px}
+  .missions th,.missions td{text-align:left;padding:9px 10px;border-bottom:2px solid var(--line)}
+  .missions td.n,.missions th.n{text-align:right;font-variant-numeric:tabular-nums}
+  details{margin-top:14px}
+  details summary{cursor:pointer;font-weight:600}
+  .words{columns:4 120px;font-size:14px;margin-top:8px;color:var(--ink-2)}
+
+  footer{max-width:1480px;margin:0 auto;padding:12px 28px 40px;font-size:16px;color:var(--ink-2)}
+  footer p{max-width:70ch;margin:0 0 6px}
+  .voice{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:500}
+
+  /* entrance */
+  .rise{opacity:0;transform:translateY(18px);animation:rise .6s var(--ease) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}.rise{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="bar-in">
+    <span class="mark">Robot Brain Lab</span>
+    <div class="status" aria-label="Vision, Language, Action status">
+      <span id="pillV"><i></i><b id="seeCount">Vision · sees 0</b></span>
+      <span id="pillL"><i></i>Language</span>
+      <span id="pillA"><i></i>Action</span>
+    </div>
+  </div>
+</div>
+
+<section class="intro">
+  <div class="rise">
+    <h1>Build a robot brain</h1>
+    <p class="lede">A tiny VLA (vision, language, action) in your browser. The camera sees and you give orders, but the arm only moves once you write its brain.</p>
+  </div>
+  <div class="rounds rise" style="animation-delay:.08s">
+    <div class="round"><b>Round 1: make it fail</b><span>Fool the camera. Record each score on the left.</span></div>
+    <div class="round r2"><b>Round 2: build its brain</b><span>Write rules on the right until the missions work.</span></div>
+  </div>
+</section>
+
+<main>
+  <div class="col">
+    <section class="card rise" style="animation-delay:.12s">
+      <div class="head">
+        <div><h2>Vision</h2><p class="sub">What the robot sees, and how sure it is.</p></div>
+        <span class="tag" id="modelTag">Loading eyes…</span>
+      </div>
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted hidden></video>
+        <img id="photo" alt="Your photo" hidden>
+        <canvas id="overlay"></canvas>
+        <div class="msg" id="camMsg">Loading the robot’s eyes…</div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn blue" id="camBtn">Use camera</button>
+        <button class="btn soft" id="flipBtn" hidden>Switch camera</button>
+        <label class="btn soft" for="file">Use a photo</label>
+        <input type="file" id="file" accept="image/*" hidden>
+        <span class="hint" style="margin:0">or paste an image (⌘/Ctrl + V)</span>
+      </div>
+      <div class="slider">
+        <label for="thr">Act only when at least</label>
+        <input type="range" id="thr" min="10" max="95" step="5" value="50">
+        <output id="thrOut">50%</output><span>sure</span>
+      </div>
+      <div class="seen" id="seenList"></div>
+    </section>
+
+    <section class="card rise" style="animation-delay:.18s">
+      <div class="head">
+        <div><h2>Measure it</h2><p class="sub">Write what you tried, then press Record. Lowest score wins Round 1.</p></div>
+        <span class="tag">Round 1</span>
+      </div>
+      <div class="note">
+        <input id="note" placeholder="What we tried, like “phone upside down”" aria-label="What we tried">
+        <button class="btn" id="recordBtn">Record</button>
+      </div>
+      <div id="results"><p class="empty">No measurements yet.</p></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card rise" style="animation-delay:.14s">
+      <div class="head">
+        <div><h2>Action</h2><p class="sub">Things the camera is sure about appear on the table. Tell the arm what to do.</p></div>
+        <label class="voice"><input type="checkbox" id="voice"> voice</label>
+      </div>
+      <div class="robot">
+        <canvas id="robot" width="640" height="340" aria-label="Robot arm simulation"></canvas>
+        <div class="bubble" id="bubble"></div>
+      </div>
+      <form class="cmd" id="cmdForm" autocomplete="off">
+        <input id="cmd" placeholder="Try: grab the cup" aria-label="Command">
+        <button class="btn blue" type="submit">Send</button>
+      </form>
+      <div class="examples" id="examples">
+        <button type="button">grab the cup</button>
+        <button type="button">grab the person</button>
+        <button type="button">bring me a drink</button>
+        <button type="button">how many people?</button>
+        <button type="button">grab the thing on the left</button>
+      </div>
+      <ul class="log" id="log"></ul>
+    </section>
+
+    <section class="card dark rise" style="animation-delay:.2s">
+      <div class="head">
+        <div><h2>Brain</h2><p class="sub">The only thing that decides what the arm does. It starts empty.</p></div>
+        <span class="tag">Round 2</span>
+      </div>
+      <textarea id="code" spellcheck="false" aria-label="Robot brain code"></textarea>
+      <div class="row" style="margin-top:14px">
+        <button class="btn blue" id="loadBtn">Load brain</button>
+        <button class="btn soft" id="copyBtn">Copy for AI</button>
+        <button class="btn soft" id="exampleBtn">Show an example</button>
+        <button class="btn soft" id="resetBtn">Start over</button>
+      </div>
+      <div class="err" id="err"></div>
+      <div class="ok" id="ok"></div>
+      <p class="hint">⌘/Ctrl + Enter also loads the brain.</p>
+    </section>
+
+    <section class="card missions rise" style="animation-delay:.26s">
+      <div class="head">
+        <div><h2>Missions</h2><p class="sub">Show Midhat a working mission to score.</p></div>
+      </div>
+      <table>
+        <tr><th>Mission</th><th class="n">Points</th></tr>
+        <tr><td>Grab whatever I name</td><td class="n">1</td></tr>
+        <tr><td>Never grab a person. Wave instead.</td><td class="n">1</td></tr>
+        <tr><td>“Bring me a drink” grabs a cup or a bottle</td><td class="n">2</td></tr>
+        <tr><td>“How many people?” says the number</td><td class="n">2</td></tr>
+        <tr><td>“Grab the thing on the left”</td><td class="n">3</td></tr>
+      </table>
+      <details>
+        <summary>The 80 things the robot’s eyes know</summary>
+        <div class="words" id="words"></div>
+      </details>
+    </section>
+  </div>
+</main>
+
+<footer class="rise" style="animation-delay:.3s">
+  <p>Made by Midhat Alvi for the Rutgers School of Engineering ID3EA demos. The camera never leaves this page: the object detector runs inside your browser, on your laptop.</p>
+  <p>Real VLAs, like RT-2, π0, GR00T and Gemini Robotics, learn their brains from huge amounts of robot data. Today you wrote yours by hand. <span id="forkLink"></span></p>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+  const REPO_URL = "https://github.com/midhatalvi/robot-brain";
+  const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+  const MP_MODEL = "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite";
+  const TFJS = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
+  const COCO_SSD = "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js";
+
+  const $ = s => document.querySelector(s);
+  const video = $("#video"), photo = $("#photo"), overlay = $("#overlay"), octx = overlay.getContext("2d");
+  const stage = $("#stage"), camMsg = $("#camMsg");
+  const rc = $("#robot"), rctx = rc.getContext("2d");
+  const codeBox = $("#code"), errBox = $("#err"), okBox = $("#ok");
+  const FONT = '"Inter Tight", system-ui, sans-serif';
+  const BLUE = "#1F4FFF", LIME = "#D4F84A", INK = "#0B0B0C";
+
+  // ---------- words ----------
+  const RENAME = {"cell phone":"phone","dining table":"table","potted plant":"plant","wine glass":"glass","sports ball":"ball","handbag":"bag","hair drier":"hair dryer"};
+  const COCO = ["person","bicycle","car","motorcycle","airplane","bus","train","truck","boat","traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat","dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee","skis","snowboard","sports ball","kite","baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle","wine glass","cup","fork","knife","spoon","bowl","banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza","donut","cake","chair","couch","potted plant","bed","dining table","toilet","tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven","toaster","sink","refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"];
+  $("#words").innerHTML = COCO.map(c => RENAME[c] || c).sort().map(w => `<div>${w}</div>`).join("");
+
+  // ---------- brains ----------
+  const EMPTY_BRAIN = `// THE ROBOT'S BRAIN
+// The robot runs brain() every time you press Send,
+// and about twice a second on its own (then command is "").
+//
+// command : what you typed, in lowercase, like "grab the cup"
+// seen    : what the camera sees right now, like
+//           [ { label: "cup", score: 0.91, x: 0.4 }, { label: "person", score: 0.98, x: 0.7 } ]
+//           x is 0 on the left and 1 on the right
+//
+// The arm can:  grab("cup")  point("cup")  wave()  dance()  home()  say("hi")
+// Helpers:      find("cup") gives the thing or null,  count("person") gives a number
+
+function brain(command, seen) {
+
+  // Mission 1: grab whatever I name.
+  // Hint: if (command.includes("cup")) { grab("cup"); }
+  // Better: look through everything in seen, and check if command includes thing.label
+
+
+}
+`;
+
+  const EXAMPLE_BRAIN = `// AN EXAMPLE BRAIN (it solves Mission 1, and makes a mistake you should fix!)
+
+function brain(command, seen) {
+  if (command === "") return;              // nothing typed? do nothing
+
+  if (command.includes("wave")) {          // a word the robot knows
+    wave();
+    return;
+  }
+
+  for (const thing of seen) {              // look at each thing the camera sees
+    if (command.includes(thing.label)) {   // did you say its name?
+      if (command.includes("point")) {
+        point(thing.label);
+      } else {
+        say("Grabbing the " + thing.label + "!");
+        grab(thing.label);                 // careful: this will grab a person too
+      }
+      return;
+    }
+  }
+
+  say("Hmm, I don't see that. Can you show it to my camera?");
+}
+`;
+
+  // ---------- vision ----------
+  let detector = null, mode = null, stream = null;
+  let allDets = [], seen = [];
+  let threshold = 0.5;
+  const photoCanvas = document.createElement("canvas");
+  let lastTs = 0;
+  const nextTs = () => { lastTs = Math.max(performance.now(), lastTs + 1); return lastTs; };
+
+  const loadScript = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("could not load " + src)); document.head.append(s); });
+
+  function setAspect(w, h) {
+    if (!w || !h) return;
+    stage.style.setProperty("--ar", `${w}/${h}`);
+    stage.style.setProperty("--arn", (w / h).toFixed(4));
+    overlay.width = w; overlay.height = h;
+  }
+
+  async function loadMediaPipe() {
+    const mp = await import(MP + "/vision_bundle.mjs");
+    const files = await mp.FilesetResolver.forVisionTasks(MP + "/wasm");
+    const opts = delegate => ({ baseOptions: { modelAssetPath: MP_MODEL, delegate }, scoreThreshold: 0.15, maxResults: 20, runningMode: "VIDEO" });
+    let det;
+    try { det = await mp.ObjectDetector.createFromOptions(files, opts("GPU")); }
+    catch (e) { det = await mp.ObjectDetector.createFromOptions(files, opts("CPU")); }
+    return {
+      name: "EfficientDet-Lite0",
+      detect: async el => det.detectForVideo(el, nextTs()).detections
+        .filter(d => d.categories[0] && d.categories[0].categoryName !== "???")
+        .map(d => ({ cls: d.categories[0].categoryName, score: d.categories[0].score, bbox: [d.boundingBox.originX, d.boundingBox.originY, d.boundingBox.width, d.boundingBox.height] }))
+    };
+  }
+  async function loadCocoSsd() {
+    if (!window.cocoSsd) { await loadScript(TFJS); await loadScript(COCO_SSD); }
+    const m = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+    return { name: "COCO-SSD", detect: async el => (await m.detect(el, 20, 0.15)).map(p => ({ cls: p.class, score: p.score, bbox: p.bbox })) };
+  }
+
+  async function loadModel() {
+    try { detector = await loadMediaPipe(); }
+    catch (e) {
+      console.warn("MediaPipe detector failed, using COCO-SSD", e);
+      try { detector = await loadCocoSsd(); }
+      catch (e2) { camMsg.textContent = "Could not load the vision model. Check the Wi-Fi and refresh the page."; $("#modelTag").textContent = "Eyes offline"; return; }
+    }
+    $("#modelTag").textContent = "Eyes: " + detector.name;
+    if (!mode) camMsg.textContent = "Eyes ready. Click Use camera, or use a photo.";
+    log("vision", detector.name + " loaded");
+  }
+
+  let camFacing = "user";
+  async function startCam() {
+    stopCam();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: camFacing }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      mode = "cam";
+      video.hidden = false; video.classList.toggle("mirror", camFacing === "user"); photo.hidden = true;
+      setAspect(video.videoWidth, video.videoHeight);
+      camMsg.hidden = !!detector;
+      if (!detector) camMsg.textContent = "Camera on. Still loading the robot’s eyes…";
+      try { const devs = await navigator.mediaDevices.enumerateDevices(); $("#flipBtn").hidden = devs.filter(d => d.kind === "videoinput").length < 2; } catch (e) {}
+    } catch (e) {
+      camMsg.hidden = false;
+      camMsg.textContent = "The camera is blocked or missing. Use a photo instead, or allow the camera in the address bar.";
+    }
+  }
+  function stopCam() { if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } }
+
+  function usePhoto(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    const url = URL.createObjectURL(file);
+    photo.onload = () => {
+      stopCam();
+      photoCanvas.width = photo.naturalWidth; photoCanvas.height = photo.naturalHeight;
+      photoCanvas.getContext("2d").drawImage(photo, 0, 0);
+      mode = "img";
+      photo.hidden = false; video.hidden = true;
+      setAspect(photo.naturalWidth, photo.naturalHeight);
+      camMsg.hidden = !!detector;
+      if (!detector) camMsg.textContent = "Photo loaded. Still loading the robot’s eyes…";
+    };
+    photo.src = url;
+  }
+
+  async function detectOnce() {
+    if (!detector || !mode) return;
+    const el = mode === "cam" ? video : photoCanvas;
+    const W = mode === "cam" ? video.videoWidth : photo.naturalWidth;
+    const H = mode === "cam" ? video.videoHeight : photo.naturalHeight;
+    if (!W || !H || (mode === "cam" && video.readyState < 2)) return;
+    if (overlay.width !== W || overlay.height !== H) setAspect(W, H);
+    camMsg.hidden = true;
+    const preds = await detector.detect(el);
+    const mirrored = mode === "cam" && camFacing === "user";
+    allDets = preds.map(p => {
+      const [bx, by, bw, bh] = p.bbox;
+      const cx = (bx + bw / 2) / W;
+      return {
+        label: RENAME[p.cls] || p.cls,
+        score: Math.round(p.score * 100) / 100,
+        x: Math.round((mirrored ? 1 - cx : cx) * 100) / 100,
+        y: Math.round(((by + bh / 2) / H) * 100) / 100,
+        size: Math.round((bw * bh) / (W * H) * 1000) / 1000,
+        _box: [mirrored ? W - bx - bw : bx, by, bw, bh]
+      };
+    });
+    seen = allDets.filter(d => d.score >= threshold).sort((a, b) => a.x - b.x);
+    drawBoxes(W);
+    renderSeen();
+  }
+
+  function drawBoxes(W) {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    const fs = Math.max(14, Math.round(W / 32));
+    octx.font = `600 ${fs}px ${FONT}`;
+    octx.textBaseline = "top";
+    for (const d of allDets) {
+      const [x, y, w, h] = d._box;
+      const sure = d.score >= threshold;
+      octx.lineWidth = Math.max(3, W / 160);
+      octx.setLineDash(sure ? [] : [10, 8]);
+      octx.strokeStyle = sure ? BLUE : "rgba(236,237,239,.85)";
+      octx.strokeRect(x, y, w, h);
+      const txt = `${sure ? "" : "maybe "}${d.label} ${Math.round(d.score * 100)}%`;
+      const tw = octx.measureText(txt).width + 14;
+      octx.setLineDash([]);
+      octx.fillStyle = sure ? BLUE : "rgba(11,11,12,.75)";
+      const ty = y < fs + 10 ? y : y - fs - 10;
+      octx.fillRect(x, ty, tw, fs + 10);
+      octx.fillStyle = "#fff";
+      octx.fillText(txt, x + 7, ty + 5);
+    }
+  }
+
+  let lastSeenKey = "";
+  function renderSeen() {
+    const list = $("#seenList");
+    const maybe = allDets.filter(d => d.score < threshold);
+    $("#seeCount").textContent = `Vision · sees ${seen.length}`;
+    const key = seen.map(d => d.label).join(",");
+    if (key !== lastSeenKey) { if (seen.length) flash("V"); lastSeenKey = key; }
+    if (!seen.length && !maybe.length) { list.innerHTML = "Nothing yet. Hold up a cup, a phone, a bottle or a book."; return; }
+    const sure = seen.map(d => `<b>${d.label}</b> ${Math.round(d.score * 100)}%`).join(", ");
+    const unsure = maybe.slice(0, 5).map(d => `${d.label} ${Math.round(d.score * 100)}%`).join(", ");
+    list.innerHTML = (sure ? `Sees ${sure}` : "Not sure about anything yet.") + (unsure ? ` <span class="maybe">· not sure enough: ${unsure}</span>` : "");
+  }
+
+  async function visionLoop() {
+    try { await detectOnce(); } catch (e) { console.warn(e); }
+    setTimeout(visionLoop, mode === "img" ? 500 : 60);
+  }
+
+  // ---------- measure ----------
+  const results = [];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function record() {
+    const what = $("#note").value.trim() || `try ${results.length + 1}`;
+    const top = allDets.slice().sort((a, b) => b.score - a.score)[0];
+    results.push({ what, saw: top ? top.label : "nothing", score: top ? Math.round(top.score * 100) : 0 });
+    $("#note").value = "";
+    renderResults();
+  }
+  function renderResults() {
+    const box = $("#results");
+    if (!results.length) { box.innerHTML = `<p class="empty">No measurements yet.</p>`; return; }
+    const low = results.reduce((m, r, i) => r.score < results[m].score ? i : m, 0);
+    box.innerHTML = `<table class="results"><tr><th>What we tried</th><th>Robot saw</th><th class="n">Score</th></tr>` +
+      results.map((r, i) => `<tr class="${i === low && results.length > 1 ? "low" : ""}"><td>${esc(r.what)}</td><td>${esc(r.saw)}</td><td class="n">${r.score}%</td></tr>`).join("") +
+      `</table><p class="hint">Highlighted: your lowest score so far. That’s the one to shout out.</p>`;
+  }
+
+  // ---------- robot arm ----------
+  const CW = 640, CH = 340;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  rc.width = CW * dpr; rc.height = CH * dpr;
+  rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const PIV = { x: 320, y: 160 }, L1 = 150, L2 = 140, TABLE_Y = 300;
+  const OBJ_H = 40, GRAB_Y = TABLE_Y - OBJ_H / 2 - 36, TOP_Y = TABLE_Y - 100, LIFT_Y = 125;
+  // left half of the camera goes left of the robot, right half goes right (keeps things off the pedestal)
+  const tableX = x => { x = Math.max(0, Math.min(1, x)); return x < 0.5 ? 70 + x * 2 * 185 : 385 + (x - 0.5) * 2 * 185; };
+
+  function ik(tx, ty) {
+    let dx = tx - PIV.x, dy = PIV.y - ty, d = Math.hypot(dx, dy);
+    const maxD = L1 + L2 - 2, minD = Math.abs(L1 - L2) + 24;
+    if (d > maxD) { dx *= maxD / d; dy *= maxD / d; d = maxD; }
+    if (d < minD) { const k = minD / (d || 1); dx *= k; dy *= k; d = minD; }
+    const c = (d * d - L1 * L1 - L2 * L2) / (2 * L1 * L2);
+    const e = Math.acos(Math.max(-1, Math.min(1, c)));
+    let base = Math.atan2(dy, dx);
+    if (base < -Math.PI / 2) base += 2 * Math.PI;
+    const off = Math.atan2(L2 * Math.sin(e), L1 + L2 * Math.cos(e));
+    const side = dx >= 0 ? 1 : -1;
+    return { s: base + side * off, r: -side * e };
+  }
+  function fk(s, r) {
+    const ex = PIV.x + L1 * Math.cos(s), ey = PIV.y - L1 * Math.sin(s);
+    return { ex, ey, wx: ex + L2 * Math.cos(s + r), wy: ey - L2 * Math.sin(s + r) };
+  }
+
+  const HOME = { x: 395, y: 105 };
+  const arm = { ...ik(HOME.x, HOME.y), g: 0.2, held: null };
+  const queue = [];
+  let current = null, idleSince = performance.now();
+  const MAX_QUEUE = 80;
+
+  function push(step) {
+    if (queue.length >= MAX_QUEUE) { showErr("Too many actions at once. Is your brain stuck in a loop?"); return false; }
+    queue.push(step); return true;
+  }
+  const moveTo = (x, y, g, dur) => push({ type: "pose", to: () => ({ ...ik(x, y), g: g == null ? arm.g : g }), dur });
+  const angles = (s, r, g, dur) => push({ type: "pose", to: () => ({ s, r, g: g == null ? arm.g : g }), dur });
+  const call = fn => push({ type: "call", fn });
+  const pause = ms => push({ type: "wait", ms });
+  function interrupt() { queue.length = 0; current = null; arm.held = null; }
+
+  const norm = v => String(v == null ? "" : v).toLowerCase().trim();
+  function pick(label) {
+    label = norm(label);
+    if (!label) return null;
+    let best = null;
+    for (const d of seen) {
+      if (d.label === label || label.includes(d.label) || d.label.includes(label)) {
+        if (!best || d.score > best.score) best = d;
+      }
+    }
+    return best;
+  }
+
+  let actionsThisRun = 0;
+  const API = {
+    grab(label) {
+      actionsThisRun++;
+      const t = pick(label);
+      if (!t) { API.say(`I can't see a ${norm(label) || "thing"}.`); return; }
+      const x = tableX(t.x), lab = t.label;
+      call(() => { log("action", `grab ${lab}`); flash("A"); });
+      moveTo(x, TOP_Y, 0, 650);
+      moveTo(x, GRAB_Y, 0, 450);
+      moveTo(x, GRAB_Y, 1, 250);
+      call(() => { arm.held = { label: lab, x }; });
+      moveTo(x, LIFT_Y, 1, 550);
+      pause(800);
+      moveTo(x, GRAB_Y, 1, 550);
+      call(() => { arm.held = null; });
+      moveTo(x, GRAB_Y, 0, 220);
+      moveTo(x, TOP_Y, 0, 400);
+      moveTo(HOME.x, HOME.y, 0.2, 600);
+    },
+    point(label) {
+      actionsThisRun++;
+      const t = pick(label);
+      if (!t) { API.say(`I can't see a ${norm(label) || "thing"}.`); return; }
+      const x = tableX(t.x), lab = t.label;
+      call(() => { log("action", `point at ${lab}`); flash("A"); });
+      moveTo(x, TOP_Y - 25, 1, 650);
+      pause(900);
+      moveTo(HOME.x, HOME.y, 0.2, 600);
+    },
+    wave() {
+      actionsThisRun++;
+      call(() => { log("action", "wave"); flash("A"); });
+      angles(1.25, 0.25, 0, 450);
+      for (let i = 0; i < 3; i++) { angles(1.25, 0.95, 0, 260); angles(1.25, 0.15, 0, 260); }
+      moveTo(HOME.x, HOME.y, 0.2, 500);
+    },
+    dance() {
+      actionsThisRun++;
+      call(() => { log("action", "dance"); flash("A"); });
+      const pts = [[200, 140, 0], [440, 140, 1], [230, 200, 0], [410, 200, 1], [320, 70, 0], [200, 140, 1], [440, 140, 0]];
+      for (const [x, y, g] of pts) moveTo(x, y, g, 300);
+      moveTo(HOME.x, HOME.y, 0.2, 500);
+    },
+    home() { actionsThisRun++; moveTo(HOME.x, HOME.y, 0.2, 500); },
+    say(text) { actionsThisRun++; const t = String(text); call(() => { bubble(t); log("action", `says “${t}”`); }); pause(250); },
+    wait(ms) { pause(Math.max(0, Math.min(5000, +ms || 0))); },
+    find(label) { const t = pick(label); return t ? strip(t) : null; },
+    count(label) { label = norm(label); return seen.filter(d => d.label === label || d.label.includes(label)).length; }
+  };
+  const strip = ({ _box, ...d }) => ({ ...d });
+
+  // ---------- animation ----------
+  const ease = p => p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+  let stepStart = 0, from = null, to = null;
+
+  function tick(now) {
+    let guard = 0;
+    while (guard++ < 20) {
+      if (!current) {
+        if (!queue.length) break;
+        current = queue.shift(); stepStart = now;
+        if (current.type === "pose") { from = { s: arm.s, r: arm.r, g: arm.g }; to = current.to(); }
+      }
+      if (current.type === "call") { try { current.fn(); } catch (e) { console.warn(e); } current = null; continue; }
+      if (current.type === "wait") { if (now - stepStart >= current.ms) { current = null; continue; } break; }
+      if (current.type === "pose") {
+        const p = Math.min(1, (now - stepStart) / Math.max(1, current.dur)), k = ease(p);
+        arm.s = from.s + (to.s - from.s) * k; arm.r = from.r + (to.r - from.r) * k; arm.g = from.g + (to.g - from.g) * k;
+        if (p >= 1) { current = null; continue; }
+        break;
+      }
+    }
+    if (!current && !queue.length) { if (idleSince === 0) idleSince = now; } else idleSince = 0;
+    drawRobot();
+    requestAnimationFrame(tick);
+  }
+
+  const tableObjs = new Map();
+  function updateTableObjs() {
+    const groups = {};
+    for (const d of seen.slice().sort((a, b) => b.score - a.score).slice(0, 8)) (groups[d.label] = groups[d.label] || []).push(d);
+    const want = new Map();
+    for (const [label, arr] of Object.entries(groups)) {
+      arr.sort((a, b) => a.x - b.x).forEach((d, i) => want.set(`${label}#${i}`, { label, tx: tableX(d.x) }));
+    }
+    for (const k of [...tableObjs.keys()]) if (!want.has(k)) tableObjs.delete(k);
+    for (const [k, w] of want) {
+      const o = tableObjs.get(k);
+      if (o) o.x += (w.tx - o.x) * 0.25; else tableObjs.set(k, { label: w.label, x: w.tx });
+    }
+  }
+
+  function drawThing(c, label, cx, cy) {
+    const tall = label === "person";
+    const w = tall ? 30 : 40, h = tall ? 64 : OBJ_H;
+    const top = cy - h / 2 - (tall ? 12 : 0);
+    c.fillStyle = tall ? "#C9CED6" : LIME;
+    c.fillRect(cx - w / 2, top, w, h);
+    c.fillStyle = INK;
+    c.fillRect(cx - w / 2, top, w, 5);
+  }
+
+  function drawRobot() {
+    const c = rctx;
+    c.clearRect(0, 0, CW, CH);
+    c.fillStyle = "#EEF0F2"; c.fillRect(0, 0, CW, TABLE_Y);
+    c.fillStyle = "#DDE1E6"; c.fillRect(0, TABLE_Y, CW, CH - TABLE_Y);
+    c.fillStyle = INK; c.fillRect(0, TABLE_Y, CW, 3);
+
+    c.fillStyle = "#2A2E35"; c.fillRect(PIV.x - 20, PIV.y, 40, TABLE_Y - PIV.y);
+    c.fillStyle = INK; c.fillRect(PIV.x - 46, TABLE_Y - 14, 92, 16);
+
+    updateTableObjs();
+    let hidden = null;
+    if (arm.held) {
+      let bestD = Infinity;
+      for (const [k, o] of tableObjs) if (o.label === arm.held.label && Math.abs(o.x - arm.held.x) < bestD) { bestD = Math.abs(o.x - arm.held.x); hidden = k; }
+    }
+    c.textAlign = "center"; c.textBaseline = "middle";
+    for (const [k, o] of tableObjs) {
+      if (k === hidden) continue;
+      drawThing(c, o.label, o.x, TABLE_Y - OBJ_H / 2);
+      c.font = `600 13px ${FONT}`; c.fillStyle = INK; c.fillText(o.label, o.x, TABLE_Y + 18);
+    }
+    if (!tableObjs.size) {
+      c.font = `500 14px ${FONT}`; c.fillStyle = "#5B6170";
+      c.fillText("Nothing on the table yet", CW / 2, TABLE_Y + 20);
+    }
+
+    const { ex, ey, wx, wy } = fk(arm.s, arm.r);
+    c.lineCap = "round";
+    c.strokeStyle = "#2A2E35"; c.lineWidth = 20;
+    c.beginPath(); c.moveTo(PIV.x, PIV.y); c.lineTo(ex, ey); c.stroke();
+    c.strokeStyle = "#4A505A"; c.lineWidth = 16;
+    c.beginPath(); c.moveTo(ex, ey); c.lineTo(wx, wy); c.stroke();
+    for (const [x, y, r] of [[PIV.x, PIV.y, 14], [ex, ey, 11], [wx, wy, 8]]) {
+      c.fillStyle = BLUE; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+    c.strokeStyle = INK; c.lineWidth = 6;
+    c.beginPath(); c.moveTo(wx, wy + 6); c.lineTo(wx, wy + 14); c.stroke();
+    const gap = 8 + (1 - arm.g) * 30;
+    if (arm.held) drawThing(c, arm.held.label, wx, wy + 36);
+    c.lineWidth = 5; c.strokeStyle = INK;
+    c.beginPath(); c.moveTo(wx - gap / 2 - 4, wy + 14); c.lineTo(wx + gap / 2 + 4, wy + 14); c.stroke();
+    c.beginPath(); c.moveTo(wx - gap / 2 - 4, wy + 14); c.lineTo(wx - gap / 2, wy + 40); c.stroke();
+    c.beginPath(); c.moveTo(wx + gap / 2 + 4, wy + 14); c.lineTo(wx + gap / 2, wy + 40); c.stroke();
+  }
+
+  // ---------- speech, log, status ----------
+  let bubbleTimer = 0, lastSpoken = "", lastSpokenAt = 0;
+  function bubble(text) {
+    const b = $("#bubble");
+    b.textContent = text; b.classList.add("show");
+    clearTimeout(bubbleTimer); bubbleTimer = setTimeout(() => b.classList.remove("show"), 2800);
+    const now = Date.now();
+    if ($("#voice").checked && "speechSynthesis" in window && (text !== lastSpoken || now - lastSpokenAt > 5000)) {
+      speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+      lastSpoken = text; lastSpokenAt = now;
+    }
+  }
+  let lastLog = "";
+  function log(kind, text) {
+    const line = kind + text;
+    if (line === lastLog) return;
+    lastLog = line;
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="k ${kind === "oops" ? "x" : ""}">${kind}</span><span></span>`;
+    li.lastChild.textContent = text;
+    const ul = $("#log"); ul.prepend(li);
+    while (ul.children.length > 5) ul.lastChild.remove();
+  }
+  function flash(which) {
+    const el = $("#pill" + which); el.classList.add("on");
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 600);
+  }
+
+  // ---------- brain ----------
+  let brain = null;
+  function cleanCode(src) {
+    const fence = src.match(/```[a-zA-Z]*\s*\n([\s\S]*?)```/);
+    return fence ? fence[1] : src;
+  }
+  function compile(src) {
+    const code = cleanCode(src);
+    const names = Object.keys(API);
+    const factory = new Function(...names, `"use strict";\n${code}\n;return (typeof brain === "function") ? brain : null;`);
+    const fn = factory(...names.map(n => API[n]));
+    if (!fn) throw new Error("I could not find a function called brain(command, seen). Keep that name.");
+    return fn;
+  }
+  function showErr(msg) { errBox.textContent = msg; errBox.classList.toggle("show", !!msg); if (msg) okBox.classList.remove("show"); }
+  function showOk(msg) { okBox.textContent = msg; okBox.classList.add("show"); clearTimeout(okBox._t); okBox._t = setTimeout(() => okBox.classList.remove("show"), 2600); }
+
+  function loadBrain(src, quiet) {
+    try {
+      brain = compile(src);
+      showErr("");
+      if (!quiet) { showOk("Brain loaded. Try a command."); log("brain", "new brain loaded"); }
+      try { localStorage.setItem("rbl-brain-v2", src); } catch (e) {}
+      return true;
+    } catch (e) {
+      showErr("Brain error: " + e.message);
+      return false;
+    }
+  }
+  function runBrain(command) {
+    if (!brain) return;
+    actionsThisRun = 0;
+    try { brain(command, seen.map(strip)); }
+    catch (e) { showErr("Brain error while running: " + e.message); log("oops", e.message); return; }
+    if (command && actionsThisRun === 0) {
+      bubble("I heard you, but my brain has no rule for that yet.");
+      log("brain", "no rule matched");
+    }
+  }
+
+  setInterval(() => {
+    if (!current && !queue.length && idleSince && performance.now() - idleSince > 500) runBrain("");
+  }, 500);
+
+  function send(text) {
+    const cmd = norm(text);
+    if (!cmd) return;
+    log("heard", `“${cmd}”`); flash("L");
+    interrupt();
+    runBrain(cmd);
+  }
+
+  // ---------- wiring ----------
+  let saved = null;
+  try { saved = localStorage.getItem("rbl-brain-v2"); } catch (e) {}
+  codeBox.value = saved || EMPTY_BRAIN;
+  loadBrain(EMPTY_BRAIN, true);
+  if (saved && saved !== EMPTY_BRAIN) showOk("Your last brain is in the box. Click Load brain to use it.");
+
+  $("#loadBtn").onclick = () => loadBrain(codeBox.value);
+  $("#resetBtn").onclick = () => { codeBox.value = EMPTY_BRAIN; loadBrain(EMPTY_BRAIN); };
+  $("#exampleBtn").onclick = () => { codeBox.value = EXAMPLE_BRAIN; showOk("Example shown. Read it, then click Load brain."); };
+  $("#copyBtn").onclick = async () => {
+    const prompt = `I'm a first-year engineering student programming a robot arm in JavaScript. Below is its brain.
+Help me change the code so that: WRITE YOUR MISSION HERE
+
+Rules:
+- Keep the function named brain(command, seen).
+- command is what I typed, in lowercase. It is "" when I typed nothing (the brain also runs about twice a second on its own).
+- seen is a list of things the camera sees, like [{ label: "cup", score: 0.91, x: 0.4, y: 0.5, size: 0.08 }]. x is 0 on the left and 1 on the right. Labels are everyday words like "person", "cup", "bottle", "phone", "book", "laptop".
+- The only robot actions are: grab(label), point(label), wave(), dance(), home(), say(text), wait(ms).
+- Helpers: find(label) returns the thing or null, count(label) returns a number.
+- No other libraries. Reply with the complete code, with a short comment on each line explaining it.
+
+Here is my current code:
+
+${codeBox.value}`;
+    try { await navigator.clipboard.writeText(prompt); showOk("Copied. Paste it into any AI chatbot and write your mission."); }
+    catch (e) { const t = document.createElement("textarea"); t.value = prompt; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); showOk("Copied. Paste it into any AI chatbot and write your mission."); }
+  };
+  codeBox.addEventListener("keydown", e => {
+    if (e.key === "Tab") { e.preventDefault(); const s = codeBox.selectionStart; codeBox.setRangeText("  ", s, codeBox.selectionEnd, "end"); }
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); loadBrain(codeBox.value); }
+  });
+
+  $("#cmdForm").onsubmit = e => { e.preventDefault(); send($("#cmd").value); };
+  $("#examples").onclick = e => { if (e.target.tagName === "BUTTON") { $("#cmd").value = e.target.textContent; send(e.target.textContent); } };
+
+  $("#recordBtn").onclick = record;
+  $("#note").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); record(); } });
+
+  $("#camBtn").onclick = startCam;
+  $("#flipBtn").onclick = () => { camFacing = camFacing === "user" ? "environment" : "user"; startCam(); };
+  $("#file").onchange = e => usePhoto(e.target.files[0]);
+  document.addEventListener("paste", e => {
+    if ([codeBox, $("#cmd"), $("#note")].includes(document.activeElement)) return;
+    const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
+    if (item) { e.preventDefault(); usePhoto(item.getAsFile()); }
+  });
+  stage.addEventListener("dragover", e => e.preventDefault());
+  stage.addEventListener("drop", e => { e.preventDefault(); usePhoto(e.dataTransfer.files[0]); });
+
+  const thr = $("#thr"), thrOut = $("#thrOut");
+  thr.oninput = () => { threshold = thr.value / 100; thrOut.textContent = thr.value + "%"; };
+
+  if (REPO_URL) $("#forkLink").innerHTML = `Want your own copy? <a href="${REPO_URL}" target="_blank" rel="noopener">Fork it on GitHub</a>.`;
+
+  renderSeen();
+  requestAnimationFrame(tick);
+  loadModel().then(visionLoop);
+})();
+</script>
+</body>
+</html>
